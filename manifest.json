@@ -1,0 +1,131 @@
+{
+  "id": "uk_holidays",
+  "name": "UK National Holidays",
+  "version": "1.2.0",
+  "description": "Today\u2019s UK bank holiday, or the next one if none today (e.g. 26 Oct 2026 \u2192 Christmas Day). Note layout with themed colours.",
+  "author": "Community",
+  "icon": "calendar",
+  "category": "data",
+  "repository": "https://github.com/petergreenway/fiestaboard-plugin--uk-holidays",
+  "documentation": "docs/SETUP.md",
+  "min_refresh_seconds": 300,
+  "teaser": "{63}{66}25 DEC    ",
+  "previews": [
+    {
+      "device_type": "note",
+      "rows": [
+        "{63}{66} 25 DEC    ",
+        "CHRISTMAS DAY  ",
+        "     TODAY     "
+      ]
+    },
+    {
+      "device_type": "flagship",
+      "rows": [
+        "{63}{66}  UK HOLIDAY       ",
+        "Christmas Day          ",
+        "25 December 2026       ",
+        "{63}{66}{63}{66}{63}{66}          ",
+        "                      ",
+        "                      "
+      ]
+    }
+  ],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region (default: England & Wales)",
+        "description": "Which UK bank holidays to include",
+        "enum": [
+          "england_wales",
+          "scotland",
+          "northern_ireland",
+          "all"
+        ],
+        "default": "england_wales"
+      },
+      "refresh_seconds": {
+        "type": "integer",
+        "title": "Refresh Interval (seconds)",
+        "default": 3600,
+        "minimum": 300,
+        "maximum": 86400
+      },
+      "show_countdown": {
+        "type": "boolean",
+        "title": "Show countdown (IN nD / TODAY)",
+        "description": "When on, Note row 3 can show TODAY, TOMORROW, or IN nD. When off, only the holiday name is shown.",
+        "default": true
+      },
+      "show_substitute": {
+        "type": "boolean",
+        "title": "Show \u201c(substitute)\u201d on moved bank holidays",
+        "description": "When a bank holiday is observed on a substitute weekday, append \u201c (substitute)\u201d to the name (still max 45 characters).",
+        "default": false
+      }
+    }
+  },
+  "variables": {
+    "simple": [
+      "holiday_name",
+      "holiday_date",
+      "holiday_date_short",
+      "holiday_theme",
+      "is_substitute",
+      "is_today",
+      "is_next",
+      "status_label",
+      "days_until",
+      "color",
+      "color2",
+      "note_row1",
+      "note_row2",
+      "note_row3",
+      "note_block",
+      "next_holiday_name",
+      "next_holiday_date",
+      "next_days_until",
+      "region",
+      "last_updated"
+    ],
+    "arrays": {
+      "holidays": {
+        "label_field": "name",
+        "item_fields": [
+          "date",
+          "name",
+          "days_until",
+          "theme"
+        ]
+      }
+    }
+  },
+  "max_lengths": {
+    "holiday_name": 45,
+    "holiday_date": 10,
+    "holiday_date_short": 12,
+    "holiday_theme": 12,
+    "is_today": 3,
+    "days_until": 4,
+    "color": 4,
+    "color2": 4,
+    "note_row1": 22,
+    "note_row2": 15,
+    "note_row3": 15,
+    "note_block": 60,
+    "next_holiday_name": 45,
+    "next_holiday_date": 10,
+    "next_days_until": 4,
+    "region": 20,
+    "last_updated": 20,
+    "holidays.*.date": 10,
+    "holidays.*.name": 45,
+    "holidays.*.days_until": 4,
+    "holidays.*.theme": 12,
+    "is_substitute": 3,
+    "is_next": 3,
+    "status_label": 12
+  }
+}
