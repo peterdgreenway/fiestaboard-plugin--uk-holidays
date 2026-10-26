@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from src.plugins.base import PluginBase, PluginResult
 
@@ -12,9 +13,8 @@ logger = logging.getLogger(__name__)
 
 NOTE_WIDTH = 15
 NOTE_ROWS = 3
-NAME_MAX = 45  # holiday display name hard limit
+NAME_MAX = 45
 
-# FiestaBoard / Vestaboard colour codes (one tile each)
 RED = "{63}"
 ORANGE = "{64}"
 YELLOW = "{65}"
@@ -24,10 +24,7 @@ VIOLET = "{68}"
 WHITE = "{69}"
 BLACK = "{70}"
 
-# England & Wales bank holidays 2026–2028 (GOV.UK style names)
-# name must be ≤ 45 characters
 HOLIDAYS: List[Dict[str, Any]] = [
-    # --- 2026 ---
     {"date": "2026-01-01", "name": "New Year's Day", "region": "uk", "theme": "new_year", "substitute": False},
     {"date": "2026-04-03", "name": "Good Friday", "region": "uk", "theme": "easter", "substitute": False},
     {"date": "2026-04-06", "name": "Easter Monday", "region": "ew_ni", "theme": "easter", "substitute": False},
@@ -37,7 +34,6 @@ HOLIDAYS: List[Dict[str, Any]] = [
     {"date": "2026-11-30", "name": "St Andrew's Day", "region": "scotland", "theme": "scotland", "substitute": False},
     {"date": "2026-12-25", "name": "Christmas Day", "region": "uk", "theme": "christmas", "substitute": False},
     {"date": "2026-12-28", "name": "Boxing Day", "region": "uk", "theme": "boxing", "substitute": True},
-    # --- 2027 ---
     {"date": "2027-01-01", "name": "New Year's Day", "region": "uk", "theme": "new_year", "substitute": False},
     {"date": "2027-01-04", "name": "2nd January", "region": "scotland", "theme": "new_year", "substitute": True},
     {"date": "2027-03-17", "name": "St Patrick's Day", "region": "ni", "theme": "patrick", "substitute": False},
@@ -51,7 +47,6 @@ HOLIDAYS: List[Dict[str, Any]] = [
     {"date": "2027-11-30", "name": "St Andrew's Day", "region": "scotland", "theme": "scotland", "substitute": False},
     {"date": "2027-12-27", "name": "Christmas Day", "region": "uk", "theme": "christmas", "substitute": True},
     {"date": "2027-12-28", "name": "Boxing Day", "region": "uk", "theme": "boxing", "substitute": True},
-    # --- 2028 ---
     {"date": "2028-01-03", "name": "New Year's Day", "region": "uk", "theme": "new_year", "substitute": True},
     {"date": "2028-01-04", "name": "2nd January", "region": "scotland", "theme": "new_year", "substitute": True},
     {"date": "2028-03-17", "name": "St Patrick's Day", "region": "ni", "theme": "patrick", "substitute": False},
@@ -67,7 +62,6 @@ HOLIDAYS: List[Dict[str, Any]] = [
     {"date": "2028-12-26", "name": "Boxing Day", "region": "uk", "theme": "boxing", "substitute": False},
 ]
 
-# region filter keys
 REGION_FILTERS = {
     "england_wales": {"uk", "ew_ni"},
     "scotland": {"uk", "scotland"},
@@ -76,56 +70,16 @@ REGION_FILTERS = {
 }
 
 THEMES: Dict[str, Dict[str, str]] = {
-    "christmas": {
-        "color": RED,
-        "color2": GREEN,
-        "accent": "FESTIVE",
-    },
-    "boxing": {
-        "color": GREEN,
-        "color2": RED,
-        "accent": "BOXING",
-    },
-    "new_year": {
-        "color": YELLOW,
-        "color2": VIOLET,
-        "accent": "NEW YEAR",
-    },
-    "easter": {
-        "color": VIOLET,
-        "color2": YELLOW,
-        "accent": "EASTER",
-    },
-    "may": {
-        "color": GREEN,
-        "color2": BLUE,
-        "accent": "MAY DAY",
-    },
-    "summer": {
-        "color": ORANGE,
-        "color2": YELLOW,
-        "accent": "SUMMER",
-    },
-    "scotland": {
-        "color": BLUE,
-        "color2": WHITE,
-        "accent": "SCOTLAND",
-    },
-    "patrick": {
-        "color": GREEN,
-        "color2": ORANGE,
-        "accent": "IRELAND",
-    },
-    "boyne": {
-        "color": ORANGE,
-        "color2": BLUE,
-        "accent": "NI",
-    },
-    "default": {
-        "color": BLUE,
-        "color2": WHITE,
-        "accent": "HOLIDAY",
-    },
+    "christmas": {"color": RED, "color2": GREEN, "accent": "FESTIVE"},
+    "boxing": {"color": GREEN, "color2": RED, "accent": "BOXING"},
+    "new_year": {"color": YELLOW, "color2": VIOLET, "accent": "NEW YEAR"},
+    "easter": {"color": VIOLET, "color2": YELLOW, "accent": "EASTER"},
+    "may": {"color": GREEN, "color2": BLUE, "accent": "MAY DAY"},
+    "summer": {"color": ORANGE, "color2": YELLOW, "accent": "SUMMER"},
+    "scotland": {"color": BLUE, "color2": WHITE, "accent": "SCOTLAND"},
+    "patrick": {"color": GREEN, "color2": ORANGE, "accent": "IRELAND"},
+    "boyne": {"color": ORANGE, "color2": BLUE, "accent": "NI"},
+    "default": {"color": BLUE, "color2": WHITE, "accent": "HOLIDAY"},
 }
 
 
@@ -133,32 +87,35 @@ def _parse_date(s: str) -> date:
     return date.fromisoformat(s)
 
 
-def _display_name(name: str, is_substitute: bool, show_substitute: bool) -> str:
-    """Official name, optionally with (substitute), still ≤ NAME_MAX."""
-    name = _clamp_name(name)
-    if is_substitute and show_substitute:
-        suffix = " (substitute)"
-        if len(name) + len(suffix) <= NAME_MAX:
-            name = name + suffix
-        else:
-            # Short label if full phrase would exceed 45
-            short = " (sub)"
-            if len(name) + len(short) <= NAME_MAX:
-                name = name + short
-    return _clamp_name(name)
-
-
 def _clamp_name(name: str) -> str:
-
     name = (name or "").strip()
     if len(name) > NAME_MAX:
         name = name[: NAME_MAX - 1].rsplit(" ", 1)[0][:NAME_MAX]
     return name
 
 
+def _display_name(name: str, is_substitute: bool, show_substitute: bool) -> str:
+    name = _clamp_name(name)
+    if is_substitute and show_substitute:
+        suffix = " (substitute)"
+        if len(name) + len(suffix) <= NAME_MAX:
+            name = name + suffix
+        else:
+            short = " (sub)"
+            if len(name) + len(short) <= NAME_MAX:
+                name = name + short
+    return _clamp_name(name)
+
+
+def _tile_len(s: str) -> int:
+    """Each {NN} colour marker counts as 1 tile."""
+    codes = re.findall(r"\{\d{2}\}", s)
+    stripped = re.sub(r"\{\d{2}\}", "", s)
+    return len(stripped) + len(codes)
+
+
 def _wrap_name(name: str, width: int = NOTE_WIDTH, rows: int = 2) -> List[str]:
-    """Word-wrap holiday name into up to `rows` lines of `width`."""
-    words = name.upper().split()
+    words = (name or "").upper().split()
     lines: List[str] = []
     cur = ""
     for w in words:
@@ -176,7 +133,7 @@ def _wrap_name(name: str, width: int = NOTE_WIDTH, rows: int = 2) -> List[str]:
         lines.append(cur[:width].ljust(width))
     while len(lines) < rows:
         lines.append(" " * width)
-    return lines[:rows]
+    return [ln[:width].ljust(width) for ln in lines[:rows]]
 
 
 def _format_note(
@@ -187,27 +144,15 @@ def _format_note(
     days_until: int,
     show_countdown: bool = True,
 ) -> Tuple[str, str, str, str, str, str]:
-    """
-    Build Note 15×3 layout.
-
-    Row 1: colour tiles + short date  e.g. {63}{66} 25 DEC
-    Row 2–3: holiday name wrapped (or name + status)
-
-    Returns note_block, row1, row2, row3, color, color2
-    """
+    """Every Note row is at most 15 tiles."""
     t = THEMES.get(theme, THEMES["default"])
     c1, c2 = t["color"], t["color2"]
     name = _clamp_name(holiday_name)
+    date_str = d.strftime("%d %b").lstrip("0").upper()
 
-    # Row 1: two colour flaps + date (tiles: 2 colours + text)
-    # Text budget for row1 content after 2 colour tiles = 13
-    date_str = d.strftime("%d %b").lstrip("0").upper()  # e.g. 25 DEC
-
-    # Status line: today vs next upcoming holiday
     if is_today:
-        status = "TODAY" if show_countdown else "TODAY"
+        status = "TODAY"
     elif not show_countdown:
-        # Still mark that this is the next holiday (not "today")
         status = "NEXT"
     elif days_until == 1:
         status = "TOMORROW"
@@ -216,31 +161,32 @@ def _format_note(
     else:
         status = "NEXT"
 
-    # Prefer: colours + date on row1; name on 2–3
-    row1_text = f" {date_str}".ljust(13)[:13]
+    # Row 1: 2 colour tiles + 13 text chars = 15 tiles
+    text_budget = NOTE_WIDTH - 2
+    row1_text = f" {date_str}"[:text_budget].ljust(text_budget)
     row1 = f"{c1}{c2}{row1_text}"
+    while _tile_len(row1) > NOTE_WIDTH and len(row1_text) > 0:
+        row1_text = row1_text[:-1]
+        row1 = f"{c1}{c2}{row1_text.ljust(text_budget)[:text_budget]}"
 
-    name_lines = _wrap_name(name, width=15, rows=2)
-    row2 = name_lines[0][:15].ljust(15)
-    row3 = name_lines[1][:15].ljust(15)
+    name_lines = _wrap_name(name, width=NOTE_WIDTH, rows=2)
+    row2 = name_lines[0][:NOTE_WIDTH].ljust(NOTE_WIDTH)
+    row3 = name_lines[1][:NOTE_WIDTH].ljust(NOTE_WIDTH)
 
-    # Put status on row 3 when that row is free; otherwise leave name wrap alone
     if status:
         if not row3.strip():
-            row3 = status.center(15)[:15].ljust(15)
-        elif len(row3.strip()) + 1 + len(status) <= 15 and status not in row3:
-            row3 = f"{row3.strip()} {status}".ljust(15)[:15]
+            row3 = status.center(NOTE_WIDTH)[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+        elif len(row3.strip()) + 1 + len(status) <= NOTE_WIDTH and status not in row3:
+            row3 = f"{row3.strip()} {status}"[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+
+    row2 = row2[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+    row3 = row3[:NOTE_WIDTH].ljust(NOTE_WIDTH)
     block = f"{row1}\n{row2}\n{row3}"
     return block, row1, row2, row3, c1, c2
 
 
 class UkHolidaysPlugin(PluginBase):
-    """UK national holiday for Vestaboard Note.
-
-    If today is a bank holiday, that day is shown (status TODAY).
-    Otherwise the next upcoming national holiday is shown (e.g. on
-    26 Oct 2026 → Christmas Day, 25 Dec 2026).
-    """
+    """Today's UK bank holiday, or the next one if none today."""
 
     @property
     def plugin_id(self) -> str:
@@ -280,12 +226,7 @@ class UkHolidaysPlugin(PluginBase):
                 if h["region"] not in allowed:
                     continue
                 d = _parse_date(h["date"])
-                name = _display_name(
-                    h["name"],
-                    bool(h.get("substitute")),
-                    show_substitute,
-                )
-                assert len(name) <= NAME_MAX
+                name = _display_name(h["name"], bool(h.get("substitute")), show_substitute)
                 days = (d - today).days
                 upcoming.append(
                     {
@@ -301,8 +242,6 @@ class UkHolidaysPlugin(PluginBase):
                     }
                 )
 
-            # Prefer today if it is a holiday; otherwise the next future one.
-            # Example: on 2026-10-26 there is no bank holiday → Christmas Day 2026-12-25.
             future = [x for x in upcoming if x["days_until"] > 0]
             today_list = [x for x in upcoming if x["days_until"] == 0]
             past = [x for x in upcoming if x["days_until"] < 0]
@@ -312,7 +251,7 @@ class UkHolidaysPlugin(PluginBase):
             elif future:
                 current = future[0]
             elif past:
-                current = past[-1]  # last known if calendar exhausted
+                current = past[-1]
             else:
                 return PluginResult(available=False, error="No holidays configured")
 
@@ -324,17 +263,15 @@ class UkHolidaysPlugin(PluginBase):
                 current["days_until"],
                 show_countdown=show_countdown,
             )
+            r2 = r2[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+            r3 = r3[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+            block = f"{r1}\n{r2}\n{r3}"
 
             if today_list and current in today_list:
                 next_h = future[0] if future else None
             else:
-                # current is already the next holiday
                 next_h = future[1] if len(future) > 1 else None
-            next_name = next_h["name"] if next_h else ""
-            next_date = next_h["date"] if next_h else ""
-            next_days = next_h["days_until"] if next_h else ""
 
-            # List remaining (from today) as simple strings for templates
             remaining = []
             for x in (today_list + future)[:12]:
                 remaining.append(
@@ -355,9 +292,9 @@ class UkHolidaysPlugin(PluginBase):
                 "is_today": "YES" if current["is_today"] else "NO",
                 "is_next": "NO" if current["is_today"] else "YES",
                 "status_label": (
-                    "TODAY" if current["is_today"]
-                    else ("TOMORROW" if current["days_until"] == 1
-                          else f"IN {current['days_until']}D")
+                    "TODAY"
+                    if current["is_today"]
+                    else ("TOMORROW" if current["days_until"] == 1 else f"IN {current['days_until']}D")
                 ),
                 "days_until": str(max(0, current["days_until"])),
                 "color": c1,
@@ -366,9 +303,9 @@ class UkHolidaysPlugin(PluginBase):
                 "note_row2": r2,
                 "note_row3": r3,
                 "note_block": block,
-                "next_holiday_name": next_name[:45],
-                "next_holiday_date": next_date,
-                "next_days_until": str(next_days) if next_days != "" else "",
+                "next_holiday_name": (next_h["name"] if next_h else "")[:45],
+                "next_holiday_date": next_h["date"] if next_h else "",
+                "next_days_until": str(next_h["days_until"]) if next_h else "",
                 "region": region,
                 "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                 "holidays": remaining,
