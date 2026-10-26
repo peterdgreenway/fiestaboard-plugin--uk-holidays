@@ -72,3 +72,14 @@ curl -X POST http://localhost:4420/api/plugins/install \
   -H "Content-Type: application/json" \
   -d '{"repository": "https://github.com/peterdgreenway/fiestaboard-plugin--uk-holidays"}'
 ```
+
+
+## Date format & weekday
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| **Date format** | short | `25 DEC` on the Note |
+| | long | Long form across rows, e.g. `25 DECEMBER` / `2026` |
+| **Show day of week** | off | Adds Friday / FRI |
+
+Variables: `holiday_date_long` (e.g. `25 December 2026`), `holiday_weekday`, `holiday_weekday_short`.

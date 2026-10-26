@@ -34,6 +34,8 @@ Plugin id: `uk_holidays`
 |---------|---------|-------------|
 | region | england_wales | Default England & Wales; also scotland / northern_ireland / all |
 | show_countdown | true | Show TODAY / TOMORROW / IN nD on the Note |
+| date_format | short | short (25 DEC) or long (25 December 2026) |
+| show_weekday | false | Include weekday the holiday falls on |
 | show_substitute | false | Append “ (substitute)” when the day is a substitute bank holiday |
 | refresh_seconds | 3600 | Min 300 |
 

@@ -143,12 +143,25 @@ def _format_note(
     is_today: bool,
     days_until: int,
     show_countdown: bool = True,
+    date_format: str = "short",
+    show_weekday: bool = False,
 ) -> Tuple[str, str, str, str, str, str]:
-    """Every Note row is at most 15 tiles."""
+    """Every Note row is at most 15 tiles.
+
+    short:  colours + 25 DEC | name | status
+    long:   colours + weekday (or blank) | day+month | year + status
+            Name is available via holiday_name variable; Note prioritises the date.
+    """
     t = THEMES.get(theme, THEMES["default"])
     c1, c2 = t["color"], t["color2"]
     name = _clamp_name(holiday_name)
-    date_str = d.strftime("%d %b").lstrip("0").upper()
+
+    weekday_full = d.strftime("%A").upper()       # FRIDAY
+    weekday_short = d.strftime("%a").upper()      # FRI
+    day_num = str(d.day)                          # no leading zero
+    month_full = d.strftime("%B").upper()         # DECEMBER
+    year = d.strftime("%Y")                       # 2026
+    date_short = f"{day_num} {d.strftime('%b').upper()}"  # 25 DEC
 
     if is_today:
         status = "TODAY"
@@ -161,23 +174,50 @@ def _format_note(
     else:
         status = "NEXT"
 
-    # Row 1: 2 colour tiles + 13 text chars = 15 tiles
-    text_budget = NOTE_WIDTH - 2
-    row1_text = f" {date_str}"[:text_budget].ljust(text_budget)
-    row1 = f"{c1}{c2}{row1_text}"
-    while _tile_len(row1) > NOTE_WIDTH and len(row1_text) > 0:
-        row1_text = row1_text[:-1]
-        row1 = f"{c1}{c2}{row1_text.ljust(text_budget)[:text_budget]}"
+    text_budget = NOTE_WIDTH - 2  # after two colour tiles
 
-    name_lines = _wrap_name(name, width=NOTE_WIDTH, rows=2)
-    row2 = name_lines[0][:NOTE_WIDTH].ljust(NOTE_WIDTH)
-    row3 = name_lines[1][:NOTE_WIDTH].ljust(NOTE_WIDTH)
+    if date_format == "long":
+        # Row1: colours + weekday (or holiday name snippet)
+        if show_weekday:
+            r1_body = f" {weekday_full}"[:text_budget].ljust(text_budget)
+        else:
+            # Put start of holiday name on row1 when no weekday
+            r1_body = f" {name.upper()}"[:text_budget].ljust(text_budget)
+        row1 = f"{c1}{c2}{r1_body}"
+        while _tile_len(row1) > NOTE_WIDTH and len(r1_body) > 0:
+            r1_body = r1_body[:-1]
+            row1 = f"{c1}{c2}{r1_body.ljust(text_budget)[:text_budget]}"
 
-    if status:
-        if not row3.strip():
-            row3 = status.center(NOTE_WIDTH)[:NOTE_WIDTH].ljust(NOTE_WIDTH)
-        elif len(row3.strip()) + 1 + len(status) <= NOTE_WIDTH and status not in row3:
-            row3 = f"{row3.strip()} {status}"[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+        # Row2: "25 DECEMBER" (fits ≤15)
+        row2 = f"{day_num} {month_full}"[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+
+        # Row3: year and optional status
+        if status and len(year) + 1 + len(status) <= NOTE_WIDTH:
+            row3 = f"{year} {status}"[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+        else:
+            row3 = year[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+            if status and not show_countdown:
+                pass
+    else:
+        # short format (default)
+        if show_weekday:
+            # e.g. " FRI 25 DEC" within 13 chars
+            r1_body = f" {weekday_short} {date_short}"[:text_budget].ljust(text_budget)
+        else:
+            r1_body = f" {date_short}"[:text_budget].ljust(text_budget)
+        row1 = f"{c1}{c2}{r1_body}"
+        while _tile_len(row1) > NOTE_WIDTH and len(r1_body) > 0:
+            r1_body = r1_body[:-1]
+            row1 = f"{c1}{c2}{r1_body.ljust(text_budget)[:text_budget]}"
+
+        name_lines = _wrap_name(name, width=NOTE_WIDTH, rows=2)
+        row2 = name_lines[0][:NOTE_WIDTH].ljust(NOTE_WIDTH)
+        row3 = name_lines[1][:NOTE_WIDTH].ljust(NOTE_WIDTH)
+        if status:
+            if not row3.strip():
+                row3 = status.center(NOTE_WIDTH)[:NOTE_WIDTH].ljust(NOTE_WIDTH)
+            elif len(row3.strip()) + 1 + len(status) <= NOTE_WIDTH and status not in row3:
+                row3 = f"{row3.strip()} {status}"[:NOTE_WIDTH].ljust(NOTE_WIDTH)
 
     row2 = row2[:NOTE_WIDTH].ljust(NOTE_WIDTH)
     row3 = row3[:NOTE_WIDTH].ljust(NOTE_WIDTH)
@@ -202,9 +242,12 @@ class UkHolidaysPlugin(PluginBase):
         refresh = config.get("refresh_seconds", 3600)
         if not isinstance(refresh, int) or refresh < 300:
             errors.append("refresh_seconds must be an integer >= 300")
-        for key in ("show_countdown", "show_substitute"):
+        for key in ("show_countdown", "show_substitute", "show_weekday"):
             if key in config and not isinstance(config[key], bool):
                 errors.append(f"{key} must be a boolean")
+        df = config.get("date_format", "short")
+        if df not in ("short", "long"):
+            errors.append("date_format must be 'short' or 'long'")
         return errors
 
     def on_config_change(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> None:
@@ -219,6 +262,10 @@ class UkHolidaysPlugin(PluginBase):
             allowed = REGION_FILTERS.get(region, REGION_FILTERS["england_wales"])
             show_countdown = bool(self.config.get("show_countdown", True))
             show_substitute = bool(self.config.get("show_substitute", False))
+            show_weekday = bool(self.config.get("show_weekday", False))
+            date_format = self.config.get("date_format", "short")
+            if date_format not in ("short", "long"):
+                date_format = "short"
             today = datetime.now(timezone.utc).date()
 
             upcoming: List[Dict[str, Any]] = []
@@ -262,7 +309,13 @@ class UkHolidaysPlugin(PluginBase):
                 current["is_today"],
                 current["days_until"],
                 show_countdown=show_countdown,
+                date_format=date_format,
+                show_weekday=show_weekday,
             )
+            d_obj = current["date_obj"]
+            date_long = f"{d_obj.day} {d_obj.strftime('%B')} {d_obj.year}"  # 25 December 2026
+            weekday_full = d_obj.strftime("%A")  # Friday
+            weekday_short = d_obj.strftime("%a")  # Fri
             r2 = r2[:NOTE_WIDTH].ljust(NOTE_WIDTH)
             r3 = r3[:NOTE_WIDTH].ljust(NOTE_WIDTH)
             block = f"{r1}\n{r2}\n{r3}"
@@ -287,6 +340,9 @@ class UkHolidaysPlugin(PluginBase):
                 "holiday_name": current["name"][:45],
                 "holiday_date": current["date"],
                 "holiday_date_short": current["date_obj"].strftime("%d %b %Y"),
+                "holiday_date_long": date_long,
+                "holiday_weekday": weekday_full,
+                "holiday_weekday_short": weekday_short,
                 "holiday_theme": current["theme"],
                 "is_substitute": "YES" if current.get("substitute") else "NO",
                 "is_today": "YES" if current["is_today"] else "NO",
