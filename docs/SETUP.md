@@ -63,3 +63,12 @@ Colour codes: `{63}` red, `{64}` orange, `{65}` yellow, `{66}` green, `{67}` blu
 - **scotland** — includes 2nd January, St Andrew's Day, early August summer holiday  
 - **northern_ireland** — includes St Patrick's Day, Battle of the Boyne  
 - **all** — union of the above  
+
+
+## Install from GitHub
+
+```bash
+curl -X POST http://localhost:4420/api/plugins/install \
+  -H "Content-Type: application/json" \
+  -d '{"repository": "https://github.com/peterdgreenway/fiestaboard-plugin--uk-holidays"}'
+```

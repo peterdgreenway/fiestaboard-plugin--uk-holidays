@@ -23,7 +23,7 @@ CHRISTMAS DAY
 ```bash
 curl -X POST http://localhost:4420/api/plugins/install \
   -H "Content-Type: application/json" \
-  -d '{"repository": "https://github.com/YOUR_USER/fiestaboard-plugin--uk-holidays"}'
+  -d '{"repository": "https://github.com/peterdgreenway/fiestaboard-plugin--uk-holidays"}'
 ```
 
 Plugin id: `uk_holidays`
